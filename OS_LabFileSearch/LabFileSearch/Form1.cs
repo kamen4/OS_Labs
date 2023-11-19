@@ -102,7 +102,7 @@ namespace LabFileSearch
         }
 
         private void worker_DoWork(object? sender, DoWorkEventArgs e)
-        {
+        {   
             foreach (var l in dataLists)
                 l.Clear();
             Queue<(string, int)> dirsQueue = new();
