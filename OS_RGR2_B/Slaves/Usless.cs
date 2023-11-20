@@ -1,11 +1,5 @@
 ﻿using OS_RGR2_B.Models;
-using System;
-using System.Collections.Generic;
 using System.ComponentModel;
-using System.ComponentModel.DataAnnotations;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace OS_RGR2_B.Slaves;
 
@@ -17,12 +11,14 @@ internal static class Usless
         ref bool solved,
         Mutex solvedMtx,
         BackgroundWorker worker,
-        Mutex workerMtx,
-        StatusViewModel status,
-        Mutex statusMtx)
+        StatusVM status,
+        Mutex statusMtx,
+        ThreadPauseState threadPauseState)
     {
         while (true)
         {
+            threadPauseState.Wait();
+
             ValidatedTest current = null;
             checkQueueMutex.WaitOne();
             if (checkQueue.Count > 0)
@@ -59,15 +55,6 @@ internal static class Usless
                 status.wrong++;
                 statusMtx.ReleaseMutex();
             }
-
-            Report(current.id, worker, workerMtx);
         }
-    }
-
-    private static void Report(int i, BackgroundWorker worker, Mutex mutex)
-    {
-        mutex.WaitOne();
-        worker.ReportProgress(i);
-        mutex.ReleaseMutex();
     }
 }

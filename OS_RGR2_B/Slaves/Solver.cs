@@ -1,12 +1,5 @@
-﻿using OS_RGR2_B.Decryptor;
-using OS_RGR2_B.Models;
-using System;
-using System.Collections.Generic;
+﻿using OS_RGR2_B.Models;
 using System.ComponentModel;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using static System.Net.Mime.MediaTypeNames;
 
 namespace OS_RGR2_B.Slaves;
 
@@ -22,12 +15,14 @@ internal static class Solver
         ref bool solved,
         Mutex solvedMtx,
         BackgroundWorker worker,
-        Mutex workerMtx,
-        StatusViewModel status,
-        Mutex statusMtx)
+        StatusVM status,
+        Mutex statusMtx,
+        ThreadPauseState threadPauseState)
     {
         while (true)
         {
+            threadPauseState.Wait();
+
             ValidatedTest current = null;
             solveQueueMtx.WaitOne();
             if (solveQueue.Count > 0)
@@ -64,17 +59,9 @@ internal static class Solver
             status.ready--;
             status.solved++;
             statusMtx.ReleaseMutex();
-            Report(current.id, worker, workerMtx);
         }
         solvedMtx.WaitOne();
         solved = true;
         solvedMtx.ReleaseMutex();
-    }
-
-    private static void Report(int i, BackgroundWorker worker, Mutex mutex)
-    {
-        mutex.WaitOne();
-        worker.ReportProgress(i);
-        mutex.ReleaseMutex();
     }
 }

@@ -1,7 +1,4 @@
 using System.ComponentModel;
-using System.Security.Policy;
-using System.Windows.Forms;
-using OS_RGR2_B.Decryptor;
 using OS_RGR2_B.Models;
 using OS_RGR2_B.Slaves;
 
@@ -14,24 +11,31 @@ public partial class Form1 : Form
     //current dirrectory
     string curDir;
     //way not to stop UI
-    BackgroundWorker worker;
-    Mutex workerMtx;
+    BackgroundWorker taskWorker;
+    BackgroundWorker findWorker;
     //stats
-    StatusViewModel status;
+    StatusVM status;
     Mutex statusMtx;
+    //pause
+    ThreadPauseState threadPauseState;
+    //
+    bool runned = false;
+
     public Form1()
     {
         InitializeComponent();
         //set up BackgroundWorker
-        worker = new()
+        taskWorker = new()
         {
             WorkerReportsProgress = true,
             WorkerSupportsCancellation = true
         };
-        worker.ProgressChanged += Worker_ProgressChanged;
-        worker.DoWork += Worker_DoWork;
-        worker.RunWorkerCompleted += Worker_RunWorkerCompleted;
-        workerMtx = new();
+        taskWorker.ProgressChanged += TaskWorker_ProgressChanged;
+        taskWorker.DoWork += TaskWorker_DoWork;
+        taskWorker.RunWorkerCompleted += TaskWorker_RunWorkerCompleted;
+        findWorker = new();
+        findWorker.DoWork += FindWorker_DoWork;
+        findWorker.RunWorkerCompleted += FindWorker_RunWorkerCompleted;
         //intit curDir to empty
         curDir = "";
         //hide tests panel
@@ -54,6 +58,74 @@ public partial class Form1 : Form
         dataGridView1.DataSource = testsBindingList;
         status = new();
         statusMtx = new();
+        //
+        threadPauseState = new();
+        //
+        solvingPanel.Visible = false;
+    }
+
+    private void FindWorker_RunWorkerCompleted(object? sender, RunWorkerCompletedEventArgs e)
+    {
+        dataGridView1.DataSource = testsBindingList;
+        //check if tests are empty
+        if (testsBindingList.Count == 0)
+        {
+            testsPanel.Visible = false;
+            MessageBox.Show(
+               $"There are no tests in this directory: {curDir}\n\nThe test should include 2 files, for example: \"test.IN\" and \"test.OUT\"",
+               "Lack of tests",
+               MessageBoxButtons.OK,
+               MessageBoxIcon.Warning);
+        }
+        else
+        {
+            runned = false;
+            status.total = testsBindingList.Count;
+            status.ready = testsBindingList.Count;
+            status.invalid = status.solved = status.done = status.wrong = 0;
+            UpdateStatTextBox();
+            runBtn.Enabled = true;
+            pauseBtn.Text = "PAUSE";
+            pauseBtn.BackColor = Color.Yellow;
+            taskWorker.CancelAsync();
+            testsPanel.Visible = true;
+        }
+        searchingPanel.Visible = false;
+        findTestsBtn.Enabled = true;
+        Update();
+    }
+
+    private void FindWorker_DoWork(object? sender, DoWorkEventArgs e)
+    {
+        //set cuurent directory
+        curDir = testsDirTextBox.Text;
+
+        //find files ends with .OUT ot .IN
+        //and select their filename withot full path
+        var files = Directory
+            .GetFiles(curDir)
+            .Where(x => x.EndsWith(".OUT") || x.EndsWith(".IN"))
+            .Select(x => x.Split('\\')[^1]);
+
+        //creating dictionary to check only tests wich have both .OUT and .IN files
+        Dictionary<string, FileTestFlag> filesDict = new();
+        foreach (var file in files)
+        {
+            string name = string.Concat(file.Split('.')[..^1]);
+            if (!filesDict.ContainsKey(name))
+                filesDict.Add(name, FileTestFlag.None);
+            filesDict[name] |= (file.EndsWith(".OUT") ? FileTestFlag.OUT : FileTestFlag.IN);
+        }
+
+        //clear our list
+        testsBindingList.Clear();
+        //fill it with valid test files values
+        int id = 0;
+        foreach (var file in filesDict)
+        {
+            if (file.Value == (FileTestFlag.OUT | FileTestFlag.IN))
+                testsBindingList.Add(new TestFileModel(file.Key, TestStatus.Ready));
+        }
     }
 
     private void TestsDirBtn_Click(object sender, EventArgs e)
@@ -80,55 +152,12 @@ public partial class Form1 : Form
             return;
         }
 
-        //set cuurent directory
-        curDir = testsDirTextBox.Text;
-
-        //find files ends with .OUT ot .IN
-        //and select their filename withot full path
-        var files = Directory
-            .GetFiles(curDir)
-            .Where(x => x.EndsWith(".OUT") || x.EndsWith(".IN"))
-            .Select(x => x.Split('\\')[^1]);
-
-        //creating dictionary to check only tests wich have both .OUT and .IN files
-        Dictionary<string, TestType> filesDict = new();
-        foreach (var file in files)
-        {
-            string name = string.Concat(file.Split('.')[..^1]);
-            if (!filesDict.ContainsKey(name))
-                filesDict.Add(name, TestType.None);
-            filesDict[name] |= (file.EndsWith(".OUT") ? TestType.OUT : TestType.IN);
-        }
-
-        //clear our list
-        testsBindingList.Clear();
-        //fill it with valid test files values
-        int id = 0;
-        foreach (var file in filesDict)
-        {
-            if (file.Value == (TestType.OUT | TestType.IN))
-                testsBindingList.Add(new TestFileModel(file.Key, TestStatus.Ready));
-        }
-
-        //check if tests are empty
-        if (testsBindingList.Count == 0)
-        {
-            testsPanel.Visible = false;
-            MessageBox.Show(
-               $"There are no tests in this directory: {curDir}\n\nThe test should include 2 files, for example: \"test.IN\" and \"test.OUT\"",
-               "Lack of tests",
-               MessageBoxButtons.OK,
-               MessageBoxIcon.Warning);
-        }
-        else
-        {
-            status.total = testsBindingList.Count;
-            status.ready = testsBindingList.Count;
-            status.invalid = status.solved = status.done = status.wrong = 0;
-            UpdateStatTextBox();
-            testsPanel.Visible = true;
-        }
-
+        searchingPanel.Visible = true;
+        findTestsBtn.Enabled = false;
+        Update();
+        
+        dataGridView1.DataSource = null;
+        findWorker.RunWorkerAsync();
     }
 
     private void TestsDirTextBox_TextChanged(object sender, EventArgs e)
@@ -139,11 +168,17 @@ public partial class Form1 : Form
 
     private void RunBtn_Click(object sender, EventArgs e)
     {
-        worker.RunWorkerAsync();
+        if (runned) return;
+        pauseBtn.Enabled = true;
+        runned = true;
+        solvingPanel.Visible = true;
+        runBtn.Enabled = false;
+        taskWorker.RunWorkerAsync();
     }
 
-    private void Worker_DoWork(object? sender, DoWorkEventArgs e)
+    private void TaskWorker_DoWork(object? sender, DoWorkEventArgs e)
     {
+        threadPauseState = new();
         bool validated = false;
         Mutex validatedMtx = new();
 
@@ -165,10 +200,10 @@ public partial class Form1 : Form
                 solveQueueMtx,
                 ref (validated),
                 validatedMtx,
-                worker,
-                workerMtx,
+                taskWorker,
                 status,
-                statusMtx);
+                statusMtx,
+                threadPauseState);
         });
         Thread solver = new(() =>
         {
@@ -181,10 +216,10 @@ public partial class Form1 : Form
                 validatedMtx,
                 ref (solved),
                 solvedMtx,
-                worker,
-                workerMtx,
+                taskWorker,
                 status,
-                statusMtx);
+                statusMtx,
+                threadPauseState);
         });
         Thread usless = new(() =>
         {
@@ -193,47 +228,49 @@ public partial class Form1 : Form
                 checkQueueMtx,
                 ref (solved),
                 solvedMtx,
-                worker,
-                workerMtx,
+                taskWorker,
                 status,
-                statusMtx);
+                statusMtx,
+                threadPauseState);
         });
         validator.Start();
         solver.Start();
         usless.Start();
+        while (validator.IsAlive || solver.IsAlive || usless.IsAlive)
+        {
+            if ((sender is BackgroundWorker w) && w.CancellationPending)
+                return;
+        }
         validator.Join();
         solver.Join();
         usless.Join();
     }
 
-    private void Worker_ProgressChanged(object? sender, ProgressChangedEventArgs e)
+    private void TaskWorker_ProgressChanged(object? sender, ProgressChangedEventArgs e)
     {
-        int row = e.ProgressPercentage;
-        TestStatusColor stat = testsBindingList[row].Status switch
-        {
-            TestStatus.Ready => TestStatusColor.Ready,
-            TestStatus.Validation => TestStatusColor.Validation,
-            TestStatus.Invalid => TestStatusColor.Invalid,
-            TestStatus.Solving => TestStatusColor.Solving,
-            TestStatus.Checking => TestStatusColor.Checking,
-            TestStatus.Done => TestStatusColor.Done,
-            TestStatus.Wrong => TestStatusColor.Wrong,
-            _ => TestStatusColor.Ready
-        };
-        dataGridView1.UpdateCellValue(1, row);
-        dataGridView1.Rows[row].Cells[1].Style.ForeColor = Color.FromArgb((int)stat);
-        dataGridView1.Update();
-        UpdateStatTextBox();
+        //TODO
     }
 
-    private void Worker_RunWorkerCompleted(object? sender, RunWorkerCompletedEventArgs e)
+    private void TaskWorker_RunWorkerCompleted(object? sender, RunWorkerCompletedEventArgs e)
     {
-        // Method intentionally left empty.
+        pauseBtn.Enabled = false;
+        UpdateTestsStats();
+        runBtn.Enabled = true;
+        solvingPanel.Visible = false;
     }
 
     private void DataGridView1_SelectionChanged(object sender, EventArgs e)
     {
         dataGridView1.ClearSelection();
+    }
+
+    private void UpdateTestsStats()
+    {
+        UpdateStatTextBox();
+        DataGridViewRowCollection l = dataGridView1.Rows;
+        for (int i = 0; i < l.Count; i++)
+            l[i].Cells[1].Style.ForeColor = testsBindingList[i].Status.StatusColor();
+        dataGridView1.Update();
     }
 
     private void UpdateStatTextBox()
@@ -246,5 +283,30 @@ public partial class Form1 : Form
             "\n\tDone:\t" + status.done +
             "\n\tWrong:\t" + status.wrong;
         statTextBox.Update();
+    }
+
+    private void PauseBtn_Click(object sender, EventArgs e)
+    {
+        if (pauseBtn.Text == "RESUME")
+        {
+            pauseBtn.Text = "PAUSE";
+            pauseBtn.BackColor = Color.Yellow;
+            threadPauseState.Paused = false;
+            solvingPanel.Visible = true;
+        }
+        else
+        {
+            pauseBtn.Text = "RESUME";
+            pauseBtn.BackColor = Color.DarkGreen;
+            threadPauseState.Paused = true;
+            UpdateTestsStats();
+            solvingPanel.Visible = false;
+        }
+    }
+
+    private void CancelBtn_Click(object sender, EventArgs e)
+    {
+        taskWorker.CancelAsync();
+        testsPanel.Visible = false;
     }
 }

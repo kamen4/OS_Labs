@@ -28,23 +28,36 @@
         /// </summary>
         private void InitializeComponent()
         {
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(Form1));
             DataGridViewCellStyle dataGridViewCellStyle1 = new DataGridViewCellStyle();
             DataGridViewCellStyle dataGridViewCellStyle2 = new DataGridViewCellStyle();
             DataGridViewCellStyle dataGridViewCellStyle3 = new DataGridViewCellStyle();
             DataGridViewCellStyle dataGridViewCellStyle4 = new DataGridViewCellStyle();
             DataGridViewCellStyle dataGridViewCellStyle5 = new DataGridViewCellStyle();
-            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(Form1));
             label1 = new Label();
             testsDirTextBox = new TextBox();
             testsDirBtn = new Button();
             findTestsBtn = new Button();
             testsPanel = new Panel();
+            solvingPanel = new Panel();
+            pictureBox1 = new PictureBox();
+            label4 = new Label();
+            cancelBtn = new Button();
+            label3 = new Label();
+            pauseBtn = new Button();
             statTextBox = new RichTextBox();
             runBtn = new Button();
             dataGridView1 = new DataGridView();
             label2 = new Label();
+            searchingPanel = new Panel();
+            label5 = new Label();
+            pictureBox2 = new PictureBox();
             testsPanel.SuspendLayout();
+            solvingPanel.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)pictureBox1).BeginInit();
             ((System.ComponentModel.ISupportInitialize)dataGridView1).BeginInit();
+            searchingPanel.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)pictureBox2).BeginInit();
             SuspendLayout();
             // 
             // label1
@@ -65,7 +78,7 @@
             testsDirTextBox.Location = new Point(1, 36);
             testsDirTextBox.Name = "testsDirTextBox";
             testsDirTextBox.PlaceholderText = "C:\\example\\tests";
-            testsDirTextBox.Size = new Size(553, 32);
+            testsDirTextBox.Size = new Size(608, 32);
             testsDirTextBox.TabIndex = 1;
             testsDirTextBox.TextChanged += TestsDirTextBox_TextChanged;
             testsDirTextBox.DoubleClick += TestsDirBtn_Click;
@@ -75,7 +88,7 @@
             testsDirBtn.BackColor = Color.Orange;
             testsDirBtn.FlatStyle = FlatStyle.Flat;
             testsDirBtn.Font = new Font("Verdana", 8F, FontStyle.Bold, GraphicsUnit.Point);
-            testsDirBtn.Location = new Point(560, 36);
+            testsDirBtn.Location = new Point(615, 36);
             testsDirBtn.Name = "testsDirBtn";
             testsDirBtn.Size = new Size(42, 32);
             testsDirBtn.TabIndex = 2;
@@ -90,7 +103,7 @@
             findTestsBtn.Font = new Font("Ubuntu", 15.75F, FontStyle.Bold, GraphicsUnit.Point);
             findTestsBtn.Location = new Point(3, 74);
             findTestsBtn.Name = "findTestsBtn";
-            findTestsBtn.Size = new Size(599, 51);
+            findTestsBtn.Size = new Size(654, 51);
             findTestsBtn.TabIndex = 3;
             findTestsBtn.Text = "Find test cases";
             findTestsBtn.UseVisualStyleBackColor = false;
@@ -100,6 +113,10 @@
             // 
             testsPanel.AutoSize = true;
             testsPanel.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            testsPanel.Controls.Add(solvingPanel);
+            testsPanel.Controls.Add(cancelBtn);
+            testsPanel.Controls.Add(label3);
+            testsPanel.Controls.Add(pauseBtn);
             testsPanel.Controls.Add(statTextBox);
             testsPanel.Controls.Add(runBtn);
             testsPanel.Controls.Add(dataGridView1);
@@ -108,6 +125,74 @@
             testsPanel.Name = "testsPanel";
             testsPanel.Size = new Size(654, 458);
             testsPanel.TabIndex = 4;
+            // 
+            // solvingPanel
+            // 
+            solvingPanel.BackColor = Color.Moccasin;
+            solvingPanel.Controls.Add(pictureBox1);
+            solvingPanel.Controls.Add(label4);
+            solvingPanel.Location = new Point(0, 36);
+            solvingPanel.Name = "solvingPanel";
+            solvingPanel.Size = new Size(421, 419);
+            solvingPanel.TabIndex = 11;
+            solvingPanel.UseWaitCursor = true;
+            // 
+            // pictureBox1
+            // 
+            pictureBox1.Image = (Image)resources.GetObject("pictureBox1.Image");
+            pictureBox1.Location = new Point(92, 155);
+            pictureBox1.Name = "pictureBox1";
+            pictureBox1.Size = new Size(200, 200);
+            pictureBox1.TabIndex = 0;
+            pictureBox1.TabStop = false;
+            pictureBox1.UseWaitCursor = true;
+            // 
+            // label4
+            // 
+            label4.AutoSize = true;
+            label4.Font = new Font("Ubuntu", 47.9999924F, FontStyle.Bold, GraphicsUnit.Point);
+            label4.Location = new Point(34, 57);
+            label4.Name = "label4";
+            label4.Size = new Size(351, 75);
+            label4.TabIndex = 11;
+            label4.Text = "SOLVING...";
+            label4.UseWaitCursor = true;
+            // 
+            // cancelBtn
+            // 
+            cancelBtn.BackColor = Color.Crimson;
+            cancelBtn.FlatStyle = FlatStyle.Flat;
+            cancelBtn.Font = new Font("Ubuntu", 20.2499981F, FontStyle.Bold, GraphicsUnit.Point);
+            cancelBtn.Location = new Point(427, 344);
+            cancelBtn.Name = "cancelBtn";
+            cancelBtn.Size = new Size(224, 61);
+            cancelBtn.TabIndex = 10;
+            cancelBtn.Text = "CANCEL";
+            cancelBtn.UseVisualStyleBackColor = false;
+            cancelBtn.Click += CancelBtn_Click;
+            // 
+            // label3
+            // 
+            label3.AutoSize = true;
+            label3.Font = new Font("Ubuntu", 20.2499981F, FontStyle.Bold, GraphicsUnit.Point);
+            label3.Location = new Point(427, 0);
+            label3.Name = "label3";
+            label3.Size = new Size(143, 33);
+            label3.TabIndex = 9;
+            label3.Text = "Statistics:";
+            // 
+            // pauseBtn
+            // 
+            pauseBtn.BackColor = Color.Yellow;
+            pauseBtn.FlatStyle = FlatStyle.Flat;
+            pauseBtn.Font = new Font("Ubuntu", 20.2499981F, FontStyle.Bold, GraphicsUnit.Point);
+            pauseBtn.Location = new Point(427, 277);
+            pauseBtn.Name = "pauseBtn";
+            pauseBtn.Size = new Size(224, 61);
+            pauseBtn.TabIndex = 8;
+            pauseBtn.Text = "PAUSE";
+            pauseBtn.UseVisualStyleBackColor = false;
+            pauseBtn.Click += PauseBtn_Click;
             // 
             // statTextBox
             // 
@@ -205,6 +290,38 @@
             label2.TabIndex = 5;
             label2.Text = "Test cases:";
             // 
+            // searchingPanel
+            // 
+            searchingPanel.Controls.Add(label5);
+            searchingPanel.Controls.Add(pictureBox2);
+            searchingPanel.Location = new Point(1, 131);
+            searchingPanel.Name = "searchingPanel";
+            searchingPanel.Size = new Size(656, 458);
+            searchingPanel.TabIndex = 5;
+            searchingPanel.UseWaitCursor = true;
+            searchingPanel.Visible = false;
+            // 
+            // label5
+            // 
+            label5.AutoSize = true;
+            label5.Font = new Font("Ubuntu", 47.9999924F, FontStyle.Bold, GraphicsUnit.Point);
+            label5.Location = new Point(118, 66);
+            label5.Name = "label5";
+            label5.Size = new Size(438, 75);
+            label5.TabIndex = 13;
+            label5.Text = "SEARCHING...";
+            label5.UseWaitCursor = true;
+            // 
+            // pictureBox2
+            // 
+            pictureBox2.Image = (Image)resources.GetObject("pictureBox2.Image");
+            pictureBox2.Location = new Point(220, 157);
+            pictureBox2.Name = "pictureBox2";
+            pictureBox2.Size = new Size(200, 200);
+            pictureBox2.TabIndex = 12;
+            pictureBox2.TabStop = false;
+            pictureBox2.UseWaitCursor = true;
+            // 
             // Form1
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
@@ -213,6 +330,7 @@
             AutoSizeMode = AutoSizeMode.GrowAndShrink;
             BackColor = Color.Bisque;
             ClientSize = new Size(756, 607);
+            Controls.Add(searchingPanel);
             Controls.Add(testsPanel);
             Controls.Add(label1);
             Controls.Add(testsDirBtn);
@@ -225,7 +343,13 @@
             Text = "RGR 2";
             testsPanel.ResumeLayout(false);
             testsPanel.PerformLayout();
+            solvingPanel.ResumeLayout(false);
+            solvingPanel.PerformLayout();
+            ((System.ComponentModel.ISupportInitialize)pictureBox1).EndInit();
             ((System.ComponentModel.ISupportInitialize)dataGridView1).EndInit();
+            searchingPanel.ResumeLayout(false);
+            searchingPanel.PerformLayout();
+            ((System.ComponentModel.ISupportInitialize)pictureBox2).EndInit();
             ResumeLayout(false);
             PerformLayout();
         }
@@ -241,5 +365,14 @@
         private DataGridView dataGridView1;
         private Button runBtn;
         private RichTextBox statTextBox;
+        private Button pauseBtn;
+        private Label label3;
+        private Button cancelBtn;
+        private Panel solvingPanel;
+        private PictureBox pictureBox1;
+        private Label label4;
+        private Panel searchingPanel;
+        private Label label5;
+        private PictureBox pictureBox2;
     }
 }

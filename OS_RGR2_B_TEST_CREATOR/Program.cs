@@ -41,13 +41,15 @@ internal class Program
         int widx = 0;
         string path = "C:\\Users\\volde\\Desktop\\TestCases";
 
-        for (int i = 1; i <= 300; i++)
+        for (int i = 1; i <= 30000; i++)
         {
             int wordsCount = rnd.Next(7);
             List<string> strs = new();
             for (int j = 0; j < wordsCount; ++j)
             {
-                if (string.IsNullOrEmpty(wordsArr[++widx]))
+                if (++widx >= wordsArr.Length)
+                    widx = 0;
+                if (string.IsNullOrEmpty(wordsArr[widx]))
                 {
                     j--;
                     continue;
@@ -59,7 +61,7 @@ internal class Program
             foreach (var str in strs)
             {
                 string res = str;
-                if ((rnd.Next(2) & 1) == 0)
+                if (res.GroupBy(x => x).Count() > 1 && (rnd.Next(2) & 1) == 0)
                 {
                     answers.Add("NO");
                     char to = 'A';

@@ -1,11 +1,5 @@
 ﻿using OS_RGR2_B.Models;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using OS_RGR2_B.Decryptor;
-using Microsoft.VisualBasic;
 using System.ComponentModel;
 
 namespace OS_RGR2_B.Slaves;
@@ -20,16 +14,17 @@ internal static class Validator
         ref bool validated,
         Mutex validatedMtx,
         BackgroundWorker worker,
-        Mutex workerMtx,
-        StatusViewModel status,
-        Mutex statusMtx)
+        StatusVM status,
+        Mutex statusMtx,
+        ThreadPauseState threadPauseState)
     {
         for (int i = 0; i < testFiles.Count; ++i)
         {
+            threadPauseState.Wait();
+
             var file = testFiles[i];
             file.Status = TestStatus.Validation;
-            Report(i, worker, workerMtx);
-            List<Test> tests = new();
+            List<TestCase> tests = new();
             using (StreamReader sr = new($"{dir}\\{file.Name}.IN"))
             {
                 if (!int.TryParse(sr.ReadLine(), out int K) || K < 1 || K > 5)
@@ -39,7 +34,6 @@ internal static class Validator
                     status.ready--;
                     status.invalid++;
                     statusMtx.ReleaseMutex();
-                    Report(i, worker, workerMtx);
                     continue;
                 }
                 bool err = false;
@@ -53,9 +47,17 @@ internal static class Validator
                     }
                     try
                     {
-                        tests.Add(new Test(
-                            sr.ReadLine() ?? throw new NullReferenceException(),
-                            sr.ReadLine() ?? throw new NullReferenceException()));
+                        string mes = sr.ReadLine() ?? throw new NullReferenceException();
+                        string cod = sr.ReadLine() ?? throw new NullReferenceException();
+                        if (mes.Length > 100 ||
+                            string.IsNullOrEmpty(mes) ||
+                            string.IsNullOrEmpty(cod) ||
+                            cod.Length > 100)
+                        {
+                            err = true;
+                            break;
+                        }
+                        tests.Add(new TestCase(mes, cod));
                     }
                     catch (Exception)
                     {
@@ -70,12 +72,10 @@ internal static class Validator
                     status.ready--;
                     status.invalid++;
                     statusMtx.ReleaseMutex();
-                    Report(i, worker, workerMtx);
                     continue;
                 }
             }
             file.Status = TestStatus.Solving;
-            Report(i, worker, workerMtx);
             solveQueueMtx.WaitOne();
             solveQueue.Enqueue(new ValidatedTest
             {
@@ -91,12 +91,5 @@ internal static class Validator
         validatedMtx.WaitOne();
         validated = true;
         validatedMtx.ReleaseMutex();
-    }
-
-    private static void Report(int i, BackgroundWorker worker, Mutex mutex)
-    {
-        mutex.WaitOne();
-        worker.ReportProgress(i);
-        mutex.ReleaseMutex();
     }
 }

@@ -1,17 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using static System.Net.Mime.MediaTypeNames;
-
-namespace OS_RGR2_B.Decryptor;
+﻿namespace OS_RGR2_B.Decryptor;
 
 internal class Decryptor
 {
-    public List<Test> Tests { get; set; }
+    public List<TestCase> Tests { get; set; }
 
-    public Decryptor(List<Test> tests)
+    public Decryptor(List<TestCase> tests)
     {
         this.Tests = tests;
     }
@@ -19,12 +12,12 @@ internal class Decryptor
     public List<bool> Solve()
     {
         List<bool> result = new();
-        foreach (Test test in Tests)
+        foreach (TestCase test in Tests)
             result.Add(Decrypt(test));
         return result;
     }
 
-    private bool Decrypt(Test test)
+    private bool Decrypt(TestCase test)
     {
         int[] codeInv = Invariant(test.Code);
         int[] messInv = Invariant(test.Message);

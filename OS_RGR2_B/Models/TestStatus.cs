@@ -1,19 +1,24 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Runtime.CompilerServices;
-using System.Text;
-using System.Threading.Tasks;
+﻿namespace OS_RGR2_B.Models;
 
-namespace OS_RGR2_B.Models;
+internal enum TestStatus
+{
+    Ready = 0x000000,       //black
+    Validation = 0xFFBF00,  //dark yellow
+    Invalid = 0xFF0000,     //red
+    Solving = 0xFCAE1E,     //dark dark yellow
+    Checking = 0xFC6A03,    //dark orange
+    Done = 0x00FF00,        //green
+    Wrong = 0xAA0000        //dark red
+}
 
-enum TestStatus
-{ 
-    Ready,
-    Validation,
-    Invalid,
-    Solving,
-    Checking,
-    Done,
-    Wrong
+internal static class Extensions
+{
+    public static Color StatusColor(this TestStatus self)
+    {
+        return Color.FromArgb((int)self);
+    }
+    public static string StatusString(this TestStatus self)
+    {
+        return self.ToString();
+    }
 }
