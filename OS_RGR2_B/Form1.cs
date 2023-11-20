@@ -1,21 +1,24 @@
 using System.ComponentModel;
 using OS_RGR2_B.Models;
+using OS_RGR2_B.Models.Enums;
+using OS_RGR2_B.Models.ViewModels;
+
 using OS_RGR2_B.Slaves;
 
 namespace OS_RGR2_B;
 
 public partial class Form1 : Form
 {
-    //list for tests dataGridView
-    readonly BindingList<TestFileModel> testsBindingList;
+    //list for tests tetsDataGridView
+    readonly BindingList<FileTestVM> testsBindingList;
     //current dirrectory
     string curDir;
     //way not to stop UI
-    BackgroundWorker taskWorker;
-    BackgroundWorker findWorker;
+    readonly BackgroundWorker taskWorker;
+    readonly BackgroundWorker findWorker;
     //stats
-    StatusVM status;
-    Mutex statusMtx;
+    readonly StatusVM status;
+    readonly Mutex statusMtx;
     //pause
     ThreadPauseState threadPauseState;
     //
@@ -30,7 +33,6 @@ public partial class Form1 : Form
             WorkerReportsProgress = true,
             WorkerSupportsCancellation = true
         };
-        taskWorker.ProgressChanged += TaskWorker_ProgressChanged;
         taskWorker.DoWork += TaskWorker_DoWork;
         taskWorker.RunWorkerCompleted += TaskWorker_RunWorkerCompleted;
         findWorker = new();
@@ -41,7 +43,7 @@ public partial class Form1 : Form
         //hide tests panel
         testsPanel.Visible = false;
         //add columns to tests dataGridView
-        dataGridView1.Columns.AddRange(
+        testDataGridView.Columns.AddRange(
             new DataGridViewTextBoxColumn()
             {
                 DataPropertyName = "Name",
@@ -55,7 +57,7 @@ public partial class Form1 : Form
         //init binding list
         testsBindingList = new();
         //set data source for dataGridView
-        dataGridView1.DataSource = testsBindingList;
+        testDataGridView.DataSource = testsBindingList;
         status = new();
         statusMtx = new();
         //
@@ -66,7 +68,7 @@ public partial class Form1 : Form
 
     private void FindWorker_RunWorkerCompleted(object? sender, RunWorkerCompletedEventArgs e)
     {
-        dataGridView1.DataSource = testsBindingList;
+        testDataGridView.DataSource = testsBindingList;
         //check if tests are empty
         if (testsBindingList.Count == 0)
         {
@@ -79,17 +81,23 @@ public partial class Form1 : Form
         }
         else
         {
-            runned = false;
-            status.total = testsBindingList.Count;
-            status.ready = testsBindingList.Count;
-            status.invalid = status.solved = status.done = status.wrong = 0;
+
+            status.Total = testsBindingList.Count;
+            status.Ready = testsBindingList.Count;
+            status.Invalid = status.Solved = status.Done = status.Wrong = 0;
             UpdateStatTextBox();
+
+            runned = false;
             runBtn.Enabled = true;
+
             pauseBtn.Text = "PAUSE";
             pauseBtn.BackColor = Color.Yellow;
+
             taskWorker.CancelAsync();
+
             testsPanel.Visible = true;
         }
+
         searchingPanel.Visible = false;
         findTestsBtn.Enabled = true;
         Update();
@@ -108,23 +116,29 @@ public partial class Form1 : Form
             .Select(x => x.Split('\\')[^1]);
 
         //creating dictionary to check only tests wich have both .OUT and .IN files
-        Dictionary<string, FileTestFlag> filesDict = new();
+        Dictionary<string, FileTestFlag> filesDictionry = new();
         foreach (var file in files)
         {
             string name = string.Concat(file.Split('.')[..^1]);
-            if (!filesDict.ContainsKey(name))
-                filesDict.Add(name, FileTestFlag.None);
-            filesDict[name] |= (file.EndsWith(".OUT") ? FileTestFlag.OUT : FileTestFlag.IN);
+            if (!filesDictionry.ContainsKey(name))
+                filesDictionry.Add(name, FileTestFlag.None);
+            filesDictionry[name] |= file.EndsWith(".OUT") ? FileTestFlag.OUT : FileTestFlag.IN;
         }
 
         //clear our list
         testsBindingList.Clear();
         //fill it with valid test files values
         int id = 0;
-        foreach (var file in filesDict)
+        foreach (var file in filesDictionry)
         {
-            if (file.Value == (FileTestFlag.OUT | FileTestFlag.IN))
-                testsBindingList.Add(new TestFileModel(file.Key, TestStatus.Ready));
+            if (file.Value == FileTestFlag.BOTH)
+                testsBindingList.Add(new FileTestVM()
+                {
+                    Name = file.Key,
+                    Status = TestStatus.Ready,
+                    Id = id++,
+                    Dir = curDir
+                });
         }
     }
 
@@ -155,8 +169,8 @@ public partial class Form1 : Form
         searchingPanel.Visible = true;
         findTestsBtn.Enabled = false;
         Update();
-        
-        dataGridView1.DataSource = null;
+
+        testDataGridView.DataSource = null;
         findWorker.RunWorkerAsync();
     }
 
@@ -179,76 +193,65 @@ public partial class Form1 : Form
     private void TaskWorker_DoWork(object? sender, DoWorkEventArgs e)
     {
         threadPauseState = new();
-        bool validated = false;
-        Mutex validatedMtx = new();
 
-        bool solved = false;
-        Mutex solvedMtx = new();
+        SyncFlag validated = new(false);
 
-        Queue<ValidatedTest> solveQueue = new();
+        SyncFlag solved = new(false);
+
+        Queue<FileTestVM> solveQueue = new();
         Mutex solveQueueMtx = new();
 
-        Queue<ValidatedTest> checkQueue = new();
+        Queue<FileTestVM> checkQueue = new();
         Mutex checkQueueMtx = new();
 
         Thread validator = new(() =>
         {
-            Validator.Validate(
-                curDir,
+            new Validator(
                 testsBindingList.ToList(),
                 solveQueue,
                 solveQueueMtx,
-                ref (validated),
-                validatedMtx,
-                taskWorker,
+                validated,
                 status,
                 statusMtx,
-                threadPauseState);
+                threadPauseState).ValidateAll();
         });
         Thread solver = new(() =>
         {
-            Solver.Solve(
+            new Solver(
                 solveQueue,
                 solveQueueMtx,
                 checkQueue,
                 checkQueueMtx,
-                ref (validated),
-                validatedMtx,
-                ref (solved),
-                solvedMtx,
-                taskWorker,
+                validated,
+                solved,
                 status,
                 statusMtx,
-                threadPauseState);
+                threadPauseState).SolveAll();
         });
         Thread usless = new(() =>
         {
-            Usless.Use(
+            new Checker(
                 checkQueue,
                 checkQueueMtx,
-                ref (solved),
-                solvedMtx,
-                taskWorker,
+                solved,
                 status,
                 statusMtx,
-                threadPauseState);
+                threadPauseState).CheckAll();
         });
+        
         validator.Start();
         solver.Start();
         usless.Start();
+        
         while (validator.IsAlive || solver.IsAlive || usless.IsAlive)
         {
             if ((sender is BackgroundWorker w) && w.CancellationPending)
                 return;
         }
+        
         validator.Join();
         solver.Join();
         usless.Join();
-    }
-
-    private void TaskWorker_ProgressChanged(object? sender, ProgressChangedEventArgs e)
-    {
-        //TODO
     }
 
     private void TaskWorker_RunWorkerCompleted(object? sender, RunWorkerCompletedEventArgs e)
@@ -259,29 +262,29 @@ public partial class Form1 : Form
         solvingPanel.Visible = false;
     }
 
-    private void DataGridView1_SelectionChanged(object sender, EventArgs e)
+    private void TaskDataGridView_SelectionChanged(object sender, EventArgs e)
     {
-        dataGridView1.ClearSelection();
+        testDataGridView.ClearSelection();
     }
 
     private void UpdateTestsStats()
     {
         UpdateStatTextBox();
-        DataGridViewRowCollection l = dataGridView1.Rows;
+        DataGridViewRowCollection l = testDataGridView.Rows;
         for (int i = 0; i < l.Count; i++)
             l[i].Cells[1].Style.ForeColor = testsBindingList[i].Status.StatusColor();
-        dataGridView1.Update();
+        testDataGridView.Update();
     }
 
     private void UpdateStatTextBox()
     {
         statTextBox.Text =
-              "Total:\t" + status.total +
-            "\nReady:\t" + status.ready +
-            "\nInvalid:\t" + status.invalid +
-            "\nSolved total:\t" + status.solved +
-            "\n\tDone:\t" + status.done +
-            "\n\tWrong:\t" + status.wrong;
+              "Total:\t" + status.Total +
+            "\nReady:\t" + status.Ready +
+            "\nInvalid:\t" + status.Invalid +
+            "\nSolved total:\t" + status.Solved +
+            "\n\tDone:\t" + status.Done +
+            "\n\tWrong:\t" + status.Wrong;
         statTextBox.Update();
     }
 

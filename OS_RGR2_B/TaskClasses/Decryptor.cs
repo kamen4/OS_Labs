@@ -1,4 +1,6 @@
-﻿namespace OS_RGR2_B.Decryptor;
+﻿using OS_RGR2_B.Models;
+
+namespace OS_RGR2_B.TaskClasses;
 
 internal class Decryptor
 {
@@ -6,7 +8,7 @@ internal class Decryptor
 
     public Decryptor(List<TestCase> tests)
     {
-        this.Tests = tests;
+        Tests = tests;
     }
 
     public List<bool> Solve()

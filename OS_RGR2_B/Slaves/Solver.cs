@@ -1,67 +1,106 @@
 ﻿using OS_RGR2_B.Models;
+using OS_RGR2_B.Models.Enums;
+using OS_RGR2_B.Models.ViewModels;
+using OS_RGR2_B.TaskClasses;
 using System.ComponentModel;
 
 namespace OS_RGR2_B.Slaves;
 
-internal static class Solver
+internal class Solver
 {
-    public static void Solve(
-        Queue<ValidatedTest> solveQueue,
+    //queue with validated tests
+    readonly Queue<FileTestVM> solveQueue;
+    readonly Mutex solveQueueMtx;
+
+    //queue with solved tests
+    readonly Queue<FileTestVM> checkQueue;
+    readonly Mutex checkQueueMutex;
+
+    //determines whether all tests are validated
+    readonly SyncFlag validated;
+
+    //determines whether all tests are solved
+    readonly SyncFlag solved;
+
+    //status panel VM
+    readonly StatusVM status;
+    readonly Mutex statusMtx;
+
+    //pause controler
+    readonly ThreadPauseState threadPauseState;
+
+    public Solver(
+        Queue<FileTestVM> solveQueue,
         Mutex solveQueueMtx,
-        Queue<ValidatedTest> checkQueue,
+        Queue<FileTestVM> checkQueue,
         Mutex checkQueueMutex,
-        ref bool validated,
-        Mutex validatedMtx,
-        ref bool solved,
-        Mutex solvedMtx,
-        BackgroundWorker worker,
+        SyncFlag validated,
+        SyncFlag solved,
         StatusVM status,
         Mutex statusMtx,
         ThreadPauseState threadPauseState)
+    {
+        this.solveQueue = solveQueue;
+        this.solveQueueMtx = solveQueueMtx;
+        this.checkQueue = checkQueue;
+        this.checkQueueMutex = checkQueueMutex;
+        this.validated = validated;
+        this.solved = solved;
+        this.status = status;
+        this.statusMtx = statusMtx;
+        this.threadPauseState = threadPauseState;
+    }
+
+    private void SolveOne(FileTestVM currentTest)
+    {
+        //create new decryptor
+        Decryptor d = new(
+            currentTest.Tests ??
+            throw new NullReferenceException($"Test with [Name:{currentTest.Name} Id:{currentTest.Id}] is null"));
+
+        //solve and write answer
+        List<bool> res = d.Solve();
+        using (StreamWriter sw = new($"{currentTest.Dir}\\{currentTest.Name}.MYOUT"))
+        {
+            res.ForEach(b => sw.WriteLine(b ? "YES" : "NO"));
+        }
+
+        //add answer to check queue
+        checkQueueMutex.WaitOne();
+        checkQueue.Enqueue(currentTest);
+        checkQueueMutex.ReleaseMutex();
+        
+        //set status
+        currentTest.Status = TestStatus.Checking;
+        statusMtx.WaitOne();
+        status.Ready--;
+        status.Solved++;
+        statusMtx.ReleaseMutex();
+    }
+
+    public void SolveAll()
     {
         while (true)
         {
             threadPauseState.Wait();
 
-            ValidatedTest current = null;
+            FileTestVM? currentTest = null;
+
+            //determines the presence of tests
             solveQueueMtx.WaitOne();
             if (solveQueue.Count > 0)
-                current = solveQueue.Dequeue();
+                currentTest = solveQueue.Dequeue();
             solveQueueMtx.ReleaseMutex();
-
-            if (current == null)
+            if (currentTest == null)
             {
-                validatedMtx.WaitOne();
-                if (!validated)
-                {
-                    validatedMtx.ReleaseMutex();
+                if (!validated.Get())
                     continue;
-                }
                 else
-                {
-                    validatedMtx.ReleaseMutex();
                     break;
-                }
             }
 
-            Decryptor.Decryptor d = new(current.test);
-            var res = d.Solve();
-            using (StreamWriter sw = new($"{current.dir}\\{current.model.Name}.MYOUT"))
-            {
-                foreach (bool b in res)
-                    sw.WriteLine(b ? "YES" : "NO");
-            }
-            checkQueueMutex.WaitOne();
-            checkQueue.Enqueue(current);
-            checkQueueMutex.ReleaseMutex();
-            current.model.Status = TestStatus.Checking;
-            statusMtx.WaitOne();
-            status.ready--;
-            status.solved++;
-            statusMtx.ReleaseMutex();
+            SolveOne(currentTest);
         }
-        solvedMtx.WaitOne();
-        solved = true;
-        solvedMtx.ReleaseMutex();
+        solved.Set(true);
     }
 }

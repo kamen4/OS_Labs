@@ -1,10 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-namespace OS_RGR2_B.Models;
+﻿namespace OS_RGR2_B.Models;
 
 internal class ThreadPauseState
 {
-    private readonly object _lock = new object();
+    private readonly object _lock = new();
     private bool _paused = false;
 
     public bool Paused

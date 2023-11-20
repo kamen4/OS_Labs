@@ -1,95 +1,138 @@
 ﻿using OS_RGR2_B.Models;
-using OS_RGR2_B.Decryptor;
 using System.ComponentModel;
+using OS_RGR2_B.Models.ViewModels;
+using OS_RGR2_B.Models.Enums;
 
 namespace OS_RGR2_B.Slaves;
 
-internal static class Validator
+internal class Validator
 {
-    public static void Validate(
-        string dir,
-        List<TestFileModel> testFiles,
-        Queue<ValidatedTest> solveQueue,
+    //ref for testdataGridView data source
+    readonly List<FileTestVM> testFiles;
+
+    //queue with validated tests
+    readonly Queue<FileTestVM> solveQueue;
+    readonly Mutex solveQueueMtx;
+
+    //determines whether all tests are validated
+    readonly SyncFlag validated;
+
+    //status panel VM
+    readonly StatusVM status;
+    readonly Mutex statusMtx;
+
+    //pause controler
+    readonly ThreadPauseState threadPauseState;
+
+    //current test index in testFiles list
+    int idx;
+
+    public Validator(
+        List<FileTestVM> testFiles,
+        Queue<FileTestVM> solveQueue,
         Mutex solveQueueMtx,
-        ref bool validated,
-        Mutex validatedMtx,
-        BackgroundWorker worker,
+        SyncFlag validated,
         StatusVM status,
         Mutex statusMtx,
         ThreadPauseState threadPauseState)
     {
-        for (int i = 0; i < testFiles.Count; ++i)
-        {
-            threadPauseState.Wait();
+        this.testFiles = testFiles;
+        this.solveQueue = solveQueue;
+        this.solveQueueMtx = solveQueueMtx;
+        this.validated = validated;
+        this.status = status;
+        this.statusMtx = statusMtx;
+        this.threadPauseState = threadPauseState;
+        idx = -1;
+    }
 
-            var file = testFiles[i];
-            file.Status = TestStatus.Validation;
-            List<TestCase> tests = new();
-            using (StreamReader sr = new($"{dir}\\{file.Name}.IN"))
+    private void ValidateCur()
+    {
+        //fetching current test
+        FileTestVM curFileTest = testFiles[idx];
+
+        //set status to VALIDATION
+        testFiles[idx].Status = TestStatus.Validation;
+        
+        //creatung test
+        List<TestCase> testCases = new();
+
+        //read test from file
+        using (StreamReader sr = new($"{curFileTest.Dir}\\{curFileTest.Name}.IN"))
+        {
+            //validate tests count
+            if (!int.TryParse(sr.ReadLine(), out int K) || K < 1 || K > 5)
             {
-                if (!int.TryParse(sr.ReadLine(), out int K) || K < 1 || K > 5)
+                curFileTest.Status = TestStatus.Invalid;
+               
+                statusMtx.WaitOne();
+                status.Ready--;
+                status.Invalid++;
+                statusMtx.ReleaseMutex();
+                
+                return;
+            }
+
+            //is test invalid
+            bool err = false;
+
+            //for determine whether there more than K test cases
+            int cnt = 0;
+            while (!sr.EndOfStream)
+            {
+                if (++cnt > K)
                 {
-                    file.Status = TestStatus.Invalid;
-                    statusMtx.WaitOne();
-                    status.ready--;
-                    status.invalid++;
-                    statusMtx.ReleaseMutex();
-                    continue;
+                    err = true;
+                    break;
                 }
-                bool err = false;
-                int cnt = 0;
-                while (!sr.EndOfStream)
+                try
                 {
-                    if (++cnt > K)
+                    string mes = sr.ReadLine() ?? throw new NullReferenceException();
+                    string cod = sr.ReadLine() ?? throw new NullReferenceException();
+                    if (mes.Length > 100 ||
+                        cod.Length > 100 ||
+                        string.IsNullOrEmpty(mes) ||
+                        string.IsNullOrEmpty(cod))
                     {
                         err = true;
                         break;
                     }
-                    try
-                    {
-                        string mes = sr.ReadLine() ?? throw new NullReferenceException();
-                        string cod = sr.ReadLine() ?? throw new NullReferenceException();
-                        if (mes.Length > 100 ||
-                            string.IsNullOrEmpty(mes) ||
-                            string.IsNullOrEmpty(cod) ||
-                            cod.Length > 100)
-                        {
-                            err = true;
-                            break;
-                        }
-                        tests.Add(new TestCase(mes, cod));
-                    }
-                    catch (Exception)
-                    {
-                        err = true;
-                        break;
-                    }
+                    testCases.Add(new TestCase(mes, cod));
                 }
-                if (err)
+                catch (Exception)
                 {
-                    file.Status = TestStatus.Invalid;
-                    statusMtx.WaitOne();
-                    status.ready--;
-                    status.invalid++;
-                    statusMtx.ReleaseMutex();
-                    continue;
+                    err = true;
+                    break;
                 }
             }
-            file.Status = TestStatus.Solving;
-            solveQueueMtx.WaitOne();
-            solveQueue.Enqueue(new ValidatedTest
+            if (err)
             {
-                id = i,
-                model = file,
-                dir = dir,
-                test = tests
-            });
-            solveQueueMtx.ReleaseMutex();
-
+                curFileTest.Status = TestStatus.Invalid;
+                statusMtx.WaitOne();
+                status.Ready--;
+                status.Invalid++;
+                statusMtx.ReleaseMutex();
+                return;
+            }
         }
+        //change tests params
+        curFileTest.Status = TestStatus.Solving;
+        curFileTest.Tests = testCases;
+        curFileTest.Id = idx;
 
-        validatedMtx.WaitOne();
-        validated = true;
-        validatedMtx.ReleaseMutex();
+        //push test to sole queue
+        solveQueueMtx.WaitOne();
+        solveQueue.Enqueue(curFileTest);
+        solveQueueMtx.ReleaseMutex();
+    }
+
+    public void ValidateAll()
+    {
+        while (++idx < testFiles.Count)
+        {
+            threadPauseState.Wait();
+            ValidateCur();
+        }
+        validated.Set(true);
     }
 }

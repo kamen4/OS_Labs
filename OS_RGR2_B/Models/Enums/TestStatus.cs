@@ -1,4 +1,4 @@
-﻿namespace OS_RGR2_B.Models;
+﻿namespace OS_RGR2_B.Models.Enums;
 
 internal enum TestStatus
 {
@@ -11,7 +11,7 @@ internal enum TestStatus
     Wrong = 0xAA0000        //dark red
 }
 
-internal static class Extensions
+internal static class TestStatusExtensions
 {
     public static Color StatusColor(this TestStatus self)
     {
