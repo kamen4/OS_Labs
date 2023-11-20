@@ -21,7 +21,7 @@ public partial class Form1 : Form
     readonly Mutex statusMtx;
     //pause
     ThreadPauseState threadPauseState;
-    //
+    //run button lock
     bool runned = false;
 
     public Form1()
@@ -33,11 +33,11 @@ public partial class Form1 : Form
             WorkerReportsProgress = true,
             WorkerSupportsCancellation = true
         };
-        taskWorker.DoWork += TaskWorker_DoWork;
-        taskWorker.RunWorkerCompleted += TaskWorker_RunWorkerCompleted;
+        taskWorker.DoWork += DoTask;
+        taskWorker.RunWorkerCompleted += TaskCompleted;
         findWorker = new();
-        findWorker.DoWork += FindWorker_DoWork;
-        findWorker.RunWorkerCompleted += FindWorker_RunWorkerCompleted;
+        findWorker.DoWork += LoadFiles;
+        findWorker.RunWorkerCompleted += FilesLoadingCompleted;
         //intit curDir to empty
         curDir = "";
         //hide tests panel
@@ -66,44 +66,7 @@ public partial class Form1 : Form
         solvingPanel.Visible = false;
     }
 
-    private void FindWorker_RunWorkerCompleted(object? sender, RunWorkerCompletedEventArgs e)
-    {
-        testDataGridView.DataSource = testsBindingList;
-        //check if tests are empty
-        if (testsBindingList.Count == 0)
-        {
-            testsPanel.Visible = false;
-            MessageBox.Show(
-               $"There are no tests in this directory: {curDir}\n\nThe test should include 2 files, for example: \"test.IN\" and \"test.OUT\"",
-               "Lack of tests",
-               MessageBoxButtons.OK,
-               MessageBoxIcon.Warning);
-        }
-        else
-        {
-
-            status.Total = testsBindingList.Count;
-            status.Ready = testsBindingList.Count;
-            status.Invalid = status.Solved = status.Done = status.Wrong = 0;
-            UpdateStatTextBox();
-
-            runned = false;
-            runBtn.Enabled = true;
-
-            pauseBtn.Text = "PAUSE";
-            pauseBtn.BackColor = Color.Yellow;
-
-            taskWorker.CancelAsync();
-
-            testsPanel.Visible = true;
-        }
-
-        searchingPanel.Visible = false;
-        findTestsBtn.Enabled = true;
-        Update();
-    }
-
-    private void FindWorker_DoWork(object? sender, DoWorkEventArgs e)
+    private void LoadFiles(object? sender, DoWorkEventArgs e)
     {
         //set cuurent directory
         curDir = testsDirTextBox.Text;
@@ -142,36 +105,41 @@ public partial class Form1 : Form
         }
     }
 
-    private void TestsDirBtn_Click(object sender, EventArgs e)
+    private void FilesLoadingCompleted(object? sender, RunWorkerCompletedEventArgs e)
     {
-        //create and execute fileDialog
-        using var fbDialog = new FolderBrowserDialog();
-        DialogResult result = fbDialog.ShowDialog();
-        if (result == DialogResult.OK && !string.IsNullOrWhiteSpace(fbDialog.SelectedPath))
-            testsDirTextBox.Text = fbDialog.SelectedPath;
-    }
-
-    private void FindTestsBtn_Click(object sender, EventArgs e)
-    {
-        //check directory existing
-        if (!Directory.Exists(testsDirTextBox.Text))
+        testDataGridView.DataSource = testsBindingList;
+        //check if tests are empty
+        if (testsBindingList.Count == 0)
         {
-            testsDirTextBox.ForeColor = Color.Red;
+            testsPanel.Visible = false;
             MessageBox.Show(
-                "Such directory dosent exist",
-                "ERROR",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Error);
-            testsDirTextBox.Focus();
-            return;
+               $"There are no tests in this directory: {curDir}\n\nThe test should include 2 files, for example: \"test.IN\" and \"test.OUT\"",
+               "Lack of tests",
+               MessageBoxButtons.OK,
+               MessageBoxIcon.Warning);
+        }
+        else
+        {
+
+            status.Total = testsBindingList.Count;
+            status.Ready = testsBindingList.Count;
+            status.Invalid = status.Solved = status.Done = status.Wrong = 0;
+            UpdateStatTextBox();
+
+            runned = false;
+            runBtn.Enabled = true;
+
+            pauseBtn.Text = "PAUSE";
+            pauseBtn.BackColor = Color.Yellow;
+
+            taskWorker.CancelAsync();
+
+            testsPanel.Visible = true;
         }
 
-        searchingPanel.Visible = true;
-        findTestsBtn.Enabled = false;
+        searchingPanel.Visible = false;
+        findTestsBtn.Enabled = true;
         Update();
-
-        testDataGridView.DataSource = null;
-        findWorker.RunWorkerAsync();
     }
 
     private void TestsDirTextBox_TextChanged(object sender, EventArgs e)
@@ -180,17 +148,7 @@ public partial class Form1 : Form
         testsDirTextBox.ForeColor = Color.Black;
     }
 
-    private void RunBtn_Click(object sender, EventArgs e)
-    {
-        if (runned) return;
-        pauseBtn.Enabled = true;
-        runned = true;
-        solvingPanel.Visible = true;
-        runBtn.Enabled = false;
-        taskWorker.RunWorkerAsync();
-    }
-
-    private void TaskWorker_DoWork(object? sender, DoWorkEventArgs e)
+    private void DoTask(object? sender, DoWorkEventArgs e)
     {
         threadPauseState = new();
 
@@ -254,17 +212,12 @@ public partial class Form1 : Form
         usless.Join();
     }
 
-    private void TaskWorker_RunWorkerCompleted(object? sender, RunWorkerCompletedEventArgs e)
+    private void TaskCompleted(object? sender, RunWorkerCompletedEventArgs e)
     {
         pauseBtn.Enabled = false;
         UpdateTestsStats();
         runBtn.Enabled = true;
         solvingPanel.Visible = false;
-    }
-
-    private void TaskDataGridView_SelectionChanged(object sender, EventArgs e)
-    {
-        testDataGridView.ClearSelection();
     }
 
     private void UpdateTestsStats()
@@ -286,6 +239,48 @@ public partial class Form1 : Form
             "\n\tDone:\t" + status.Done +
             "\n\tWrong:\t" + status.Wrong;
         statTextBox.Update();
+    }
+
+    private void TestsDirBtn_Click(object sender, EventArgs e)
+    {
+        //create and execute fileDialog
+        using var fbDialog = new FolderBrowserDialog();
+        DialogResult result = fbDialog.ShowDialog();
+        if (result == DialogResult.OK && !string.IsNullOrWhiteSpace(fbDialog.SelectedPath))
+            testsDirTextBox.Text = fbDialog.SelectedPath;
+    }
+
+    private void FindTestsBtn_Click(object sender, EventArgs e)
+    {
+        //check directory existing
+        if (!Directory.Exists(testsDirTextBox.Text))
+        {
+            testsDirTextBox.ForeColor = Color.Red;
+            MessageBox.Show(
+                "Such directory dosent exist",
+                "ERROR",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+            testsDirTextBox.Focus();
+            return;
+        }
+
+        searchingPanel.Visible = true;
+        findTestsBtn.Enabled = false;
+        Update();
+
+        testDataGridView.DataSource = null;
+        findWorker.RunWorkerAsync();
+    }
+
+    private void RunBtn_Click(object sender, EventArgs e)
+    {
+        if (runned) return;
+        pauseBtn.Enabled = true;
+        runned = true;
+        solvingPanel.Visible = true;
+        runBtn.Enabled = false;
+        taskWorker.RunWorkerAsync();
     }
 
     private void PauseBtn_Click(object sender, EventArgs e)
@@ -311,5 +306,11 @@ public partial class Form1 : Form
     {
         taskWorker.CancelAsync();
         testsPanel.Visible = false;
+    }
+    
+    //Undo selection
+    private void TaskDataGridView_SelectionChanged(object sender, EventArgs e)
+    {
+        testDataGridView.ClearSelection();
     }
 }
