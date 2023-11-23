@@ -64,6 +64,8 @@ public partial class Form1 : Form
         threadPauseState = new();
         //
         solvingPanel.Visible = false;
+        //
+        pauseBtn.Enabled = false;
     }
 
     private void LoadFiles(object? sender, DoWorkEventArgs e)
@@ -204,7 +206,10 @@ public partial class Form1 : Form
         while (validator.IsAlive || solver.IsAlive || usless.IsAlive)
         {
             if ((sender is BackgroundWorker w) && w.CancellationPending)
+            {
+                threadPauseState.Paused = true;
                 return;
+            }
         }
         
         validator.Join();
@@ -265,8 +270,11 @@ public partial class Form1 : Form
             return;
         }
 
+        CancelBtn_Click(sender, e);
+
         searchingPanel.Visible = true;
         findTestsBtn.Enabled = false;
+        pauseBtn.Enabled = false;
         Update();
 
         testDataGridView.DataSource = null;
@@ -305,6 +313,7 @@ public partial class Form1 : Form
     private void CancelBtn_Click(object sender, EventArgs e)
     {
         taskWorker.CancelAsync();
+        testsBindingList.Clear();
         testsPanel.Visible = false;
     }
     
